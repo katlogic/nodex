@@ -12,6 +12,13 @@
 #include <ngx_config.h>
 #include <ngx_core.h>
 
+#if (NGX_SYSLOG)
+#include <syslog.h>
+
+#define SYSLOG_FACILITY LOG_LOCAL5
+#define ERR_SYSLOG_PRIORITY LOG_ERR
+#endif
+
 
 #define NGX_LOG_STDERR            0
 #define NGX_LOG_EMERG             1
@@ -42,34 +49,12 @@
 #define NGX_LOG_DEBUG_ALL         0x7ffffff0
 
 
-#if (NGX_SYSLOG)
-
-#define NGX_SYSLOG_HEADER_LEN     100
-
-
-typedef struct {
-    time_t               next_try;
-    ngx_addr_t           addr;
-    ngx_str_t            syslog_pri;      /* pri field comput for syslog */
-    ngx_str_t            ident;
-
-    ngx_socket_t         fd;
-    ngx_str_t            header;
-    u_char               header_buf[NGX_SYSLOG_HEADER_LEN];
-} ngx_syslog_t;
-
-#endif
-
-
 typedef u_char *(*ngx_log_handler_pt) (ngx_log_t *log, u_char *buf, size_t len);
 
 
 struct ngx_log_s {
-#if (NGX_SYSLOG)
-    ngx_syslog_t        *syslog;
-#endif
-    ngx_open_file_t     *file;
     ngx_uint_t           log_level;
+    ngx_open_file_t     *file;
 
     ngx_atomic_uint_t    connection;
 
@@ -83,10 +68,19 @@ struct ngx_log_s {
      */
 
     char                *action;
+
+	#if (NGX_SYSLOG)
+		ngx_int_t           priority;
+		ngx_int_t           facility;
+		unsigned            syslog_on:1;      /* unsigned :1 syslog_on */
+		unsigned            syslog_set:1;      /*unsigned :1 syslog_set */
+	#endif
+
+    ngx_log_t           *next;
 };
 
 
-#define NGX_MAX_ERROR_STR   4096
+#define NGX_MAX_ERROR_STR   2048
 
 
 /*********************************/
@@ -242,12 +236,16 @@ void ngx_cdecl ngx_log_debug_core(ngx_log_t *log, ngx_err_t err,
 /*********************************/
 
 ngx_log_t *ngx_log_init(u_char *prefix);
-ngx_log_t *ngx_log_create(ngx_cycle_t *cycle, ngx_str_t *name);
-char *ngx_log_set_levels(ngx_conf_t *cf, ngx_log_t *log);
+#if (NGX_SYSLOG)
+ngx_int_t ngx_log_get_priority(ngx_conf_t *cf, ngx_str_t *priority);
+char * ngx_log_set_priority(ngx_conf_t *cf, ngx_str_t *priority, ngx_log_t *log);
+#endif
 void ngx_cdecl ngx_log_abort(ngx_err_t err, const char *fmt, ...);
 void ngx_cdecl ngx_log_stderr(ngx_err_t err, const char *fmt, ...);
 u_char *ngx_log_errno(u_char *buf, u_char *last, ngx_err_t err);
-ngx_int_t ngx_log_target(ngx_cycle_t *cycle, ngx_str_t *value, ngx_log_t *log);
+ngx_int_t ngx_log_open_default(ngx_cycle_t *cycle);
+ngx_int_t ngx_log_redirect_stderr(ngx_cycle_t *cycle);
+char *ngx_log_set_log(ngx_conf_t *cf, ngx_log_t **head);
 
 
 /*

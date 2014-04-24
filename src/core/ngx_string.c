@@ -488,7 +488,7 @@ ngx_sprintf_num(u_char *buf, u_char *last, uint64_t ui64, u_char zero,
 
     if (hexadecimal == 0) {
 
-        if (ui64 <= NGX_MAX_UINT32_VALUE) {
+        if (ui64 <= (uint64_t) NGX_MAX_UINT32_VALUE) {
 
             /*
              * To divide 64-bit numbers and to find remainders
@@ -851,6 +851,46 @@ ngx_dns_strcmp(u_char *s1, u_char *s2)
 
         return c1 - c2;
     }
+}
+
+
+ngx_int_t
+ngx_filename_cmp(u_char *s1, u_char *s2, size_t n)
+{
+    ngx_uint_t  c1, c2;
+
+    while (n) {
+        c1 = (ngx_uint_t) *s1++;
+        c2 = (ngx_uint_t) *s2++;
+
+#if (NGX_HAVE_CASELESS_FILESYSTEM)
+        c1 = tolower(c1);
+        c2 = tolower(c2);
+#endif
+
+        if (c1 == c2) {
+
+            if (c1) {
+                n--;
+                continue;
+            }
+
+            return 0;
+        }
+
+        /* we need '/' to be the lowest character */
+
+        if (c1 == 0 || c2 == 0) {
+            return c1 - c2;
+        }
+
+        c1 = (c1 == '/') ? 0 : c1;
+        c2 = (c2 == '/') ? 0 : c2;
+
+        return c1 - c2;
+    }
+
+    return 0;
 }
 
 
